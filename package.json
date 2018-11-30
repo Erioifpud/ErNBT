@@ -1,0 +1,14 @@
+{
+  "name": "ErNBT",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "Erioifpud",
+  "license": "MIT",
+  "dependencies": {
+    "@types/node": "^10.12.10",
+    "node-gzip": "^1.1.2"
+  },
+  "scripts": {
+    "start": "ts-node ./src/index.ts"
+  }
+}
