@@ -6,6 +6,7 @@
   "license": "MIT",
   "dependencies": {
     "@types/node": "^10.12.10",
+    "int64-buffer": "^0.99.1007",
     "node-gzip": "^1.1.2"
   },
   "scripts": {
