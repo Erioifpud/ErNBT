@@ -108,7 +108,7 @@ class Reader {
     while (true) {
       const node = this.readTag(buffer, undefined)
       buffer = node.left
-      if (node.type === +TAG.END) {
+      if (node.type === TAG.END) {
         break
       } else {
         result.push(node)
@@ -146,7 +146,7 @@ class Reader {
   private readName (buffer: Buffer) {
     const { value: type, left } = this.readByte(buffer)
     buffer = left
-    if (type === +TAG.END) {
+    if (type === TAG.END) {
       return {
         value: {
           type,
@@ -156,10 +156,11 @@ class Reader {
       }
     } else {
       const str = this.readString(buffer)
+      buffer = str.left
       return {
         value: {
           type,
-          value: str.value
+          name: str.value
         },
         left: buffer
       }
@@ -172,17 +173,19 @@ class Reader {
       d = data
     } else {
       d = this.readName(buffer)
+      console.log('readName', d);
       buffer = d.left
     }
     const { type, name } = d.value
+    // console.log('type', type);
     switch (type) {
-      case +TAG.END:
+      case TAG.END:
         return {
           type: TAG.END,
           name: '',
           left: buffer
         }
-      case +TAG.BYTE:
+      case TAG.BYTE:
         const byte = this.readByte(buffer)
         buffer = byte.left
         return {
@@ -191,7 +194,7 @@ class Reader {
           left: buffer,
           value: byte.value
         }
-      case +TAG.SHORT:
+      case TAG.SHORT:
         const short = this.readShort(buffer)
         buffer = short.left
         return {
@@ -200,7 +203,7 @@ class Reader {
           left: buffer,
           value: short.value
         }
-      case +TAG.INT:
+      case TAG.INT:
         const int = this.readInt(buffer)
         buffer = int.left
         return {
@@ -209,7 +212,7 @@ class Reader {
           left: buffer,
           value: int.value
         }
-      case +TAG.LONG:
+      case TAG.LONG:
         const long = this.readLong(buffer)
         buffer = long.left
         return {
@@ -218,7 +221,7 @@ class Reader {
           left: buffer,
           value: long.value
         }
-      case +TAG.FLOAT:
+      case TAG.FLOAT:
         const float = this.readFloat(buffer)
         buffer = float.left
         return {
@@ -227,7 +230,7 @@ class Reader {
           left: buffer,
           value: float.value
         }
-      case +TAG.DOUBLE:
+      case TAG.DOUBLE:
         const double = this.readDouble(buffer)
         buffer = double.left
         return {
@@ -236,7 +239,7 @@ class Reader {
           left: buffer,
           value: double.value
         }
-      case +TAG.BYTE_ARRAY:
+      case TAG.BYTE_ARRAY:
         const bytes = this.readByteArray(buffer)
         buffer = bytes.left
         return {
@@ -245,7 +248,7 @@ class Reader {
           left: buffer,
           value: bytes.value
         }
-      case +TAG.STRING:
+      case TAG.STRING:
         const string = this.readString(buffer)
         buffer = string.left
         return {
@@ -254,7 +257,7 @@ class Reader {
           left: buffer,
           value: string.value
         }
-      case +TAG.LIST:
+      case TAG.LIST:
         const list = this.readList(buffer)
         buffer = list.left
         return {
@@ -263,7 +266,7 @@ class Reader {
           left: buffer,
           value: list.value
         }
-      case +TAG.COMPOUND:
+      case TAG.COMPOUND:
         const compound = this.readCompound(buffer)
         buffer = compound.left
         return {
@@ -272,8 +275,8 @@ class Reader {
           left: buffer,
           value: compound.value
         }
-      case +TAG.INT_ARRAY:
-        const ints = this.readByteArray(buffer)
+      case TAG.INT_ARRAY:
+        const ints = this.readIntArray(buffer)
         buffer = ints.left
         return {
           type: TAG.INT_ARRAY,
@@ -281,8 +284,8 @@ class Reader {
           left: buffer,
           value: ints.value
         }
-      case +TAG.LONG_ARRAY:
-        const longs = this.readByteArray(buffer)
+      case TAG.LONG_ARRAY:
+        const longs = this.readLongArray(buffer)
         buffer = longs.left
         return {
           type: TAG.LONG_ARRAY,
@@ -293,8 +296,16 @@ class Reader {
     }
   }
 
-  private prettify () {
-    // remove buffer
+  prettify (obj) {
+    for(let prop in obj) {
+      if (prop === 'left') {
+        delete obj[prop]
+      } else if (prop === 'type') {
+        obj[prop] = TAG[obj[prop]]
+      } else if (typeof obj[prop] === 'object') {
+        this.prettify(obj[prop])
+      }
+    }
   }
 
   parse (buffer: Buffer) {
@@ -307,7 +318,12 @@ class Reader {
 
 // })
 
-const level: Buffer = fs.readFileSync('./src/level.dat')
+const level: Buffer = zlib.gunzipSync(fs.readFileSync('./src/level.dat'))
 
 // console.log(level)
 // console.log(zlib.gunzipSync(level))
+const reader = new Reader()
+const result = reader.parse(level)
+reader.prettify(result)
+console.log(result)
+fs.writeFileSync('result.json', JSON.stringify(result), 'utf8');
