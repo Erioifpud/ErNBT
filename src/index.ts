@@ -20,6 +20,12 @@ enum TAG {
 }
 
 class Reader {
+  private buffer: Buffer
+
+  constructor (buffer: Buffer) {
+    this.buffer = buffer
+  }
+
   private readEnd (buffer: Buffer) {
     return {
       value: '',
@@ -50,7 +56,7 @@ class Reader {
 
   private readLong (buffer: Buffer) {
     return {
-      value: new Int64BE(buffer),
+      value: new Int64BE(buffer).toString(),
       left: buffer.slice(8)
     }
   }
@@ -173,11 +179,9 @@ class Reader {
       d = data
     } else {
       d = this.readName(buffer)
-      console.log('readName', d);
       buffer = d.left
     }
     const { type, name } = d.value
-    // console.log('type', type);
     switch (type) {
       case TAG.END:
         return {
@@ -296,7 +300,7 @@ class Reader {
     }
   }
 
-  prettify (obj) {
+  private prettify (obj) {
     for(let prop in obj) {
       if (prop === 'left') {
         delete obj[prop]
@@ -308,22 +312,22 @@ class Reader {
     }
   }
 
-  parse (buffer: Buffer) {
-    return this.readTag(buffer, undefined)
+  read () {
+    const obj = this.readTag(this.buffer, undefined)
+    this.prettify(obj)
+    return obj
+  }
+
+  parse (path: String) {
+    const json = JSON.stringify(this.read())
+    fs.writeFileSync(path, json, 'utf8')
+    return json
   }
 }
 
-// const reader = new Reader(buf)
-// reader.read(function (tags) {
-
-// })
-
 const level: Buffer = zlib.gunzipSync(fs.readFileSync('./src/level.dat'))
 
-// console.log(level)
-// console.log(zlib.gunzipSync(level))
-const reader = new Reader()
-const result = reader.parse(level)
-reader.prettify(result)
+const reader = new Reader(level)
+const result = reader.read()
 console.log(result)
-fs.writeFileSync('result.json', JSON.stringify(result), 'utf8');
+reader.parse('result.json')
