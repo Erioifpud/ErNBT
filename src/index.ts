@@ -19,284 +19,352 @@ enum TAG {
   LONG_ARRAY
 }
 
+interface TagNode {
+  value: any,
+  left: Buffer
+}
+
+// interface BindMap {
+//   [tag: number]: string
+// }
+
+// function bindTag (tag: TAG) {
+//   return function (target: Reader, propertyKey: string, descriptor: PropertyDescriptor) {
+//     target.bindMap[+tag] = propertyKey
+//   }
+// }
+
 class Reader {
-  private buffer: Buffer
-
-  constructor (buffer: Buffer) {
-    this.buffer = buffer
+  // private buffer: Buffer
+  private bindMap = {
+    // [TAG.END] = 'readEnd',
+    [TAG.BYTE]: this.readByte,
+    [TAG.SHORT]: this.readShort,
+    [TAG.INT]: this.readInt,
+    [TAG.LONG]: this.readLong,
+    [TAG.FLOAT]: this.readFloat,
+    [TAG.DOUBLE]: this.readDouble,
+    [TAG.BYTE_ARRAY]: this.readByteArray,
+    [TAG.STRING]: this.readString,
+    [TAG.LIST]: this.readList,
+    [TAG.COMPOUND]: this.readCompound,
+    [TAG.INT_ARRAY]: this.readIntArray,
+    [TAG.LONG_ARRAY]: this.readLongArray
   }
 
-  private readEnd (buffer: Buffer) {
+  // constructor (buffer: Buffer) {
+  //   this.buffer = buffer
+  // }
+
+  private readNode (readFunc: Function, offset: number, buffer: Buffer): TagNode {
+    // console.log('readNode', buffer);
     return {
-      value: '',
-      left: buffer
+      value: readFunc.call(buffer, 0),
+      left: buffer.slice(offset)
     }
   }
 
-  private readByte (buffer: Buffer) {
-    return {
-      value: buffer.readInt8(0),
-      left: buffer.slice(1)
-    }
+  private readByte (buffer?: Buffer): TagNode {
+    return this.readNode(Buffer.prototype.readInt8, 1, buffer)
   }
 
-  private readShort (buffer: Buffer) {
-    return {
-      value: buffer.readInt16BE(0),
-      left: buffer.slice(2)
-    }
+  private readShort (buffer?: Buffer): TagNode {
+    return this.readNode(Buffer.prototype.readInt16BE, 2, buffer)
   }
 
-  private readInt (buffer: Buffer) {
-    return {
-      value: buffer.readInt32BE(0),
-      left: buffer.slice(4)
-    }
+  private readInt (buffer?: Buffer): TagNode {
+    return this.readNode(Buffer.prototype.readInt32BE, 4, buffer)
   }
 
-  private readLong (buffer: Buffer) {
+  private readLong (buffer?: Buffer): TagNode {
     return {
       value: new Int64BE(buffer).toString(),
-      left: buffer.slice(8)
+      left: (buffer).slice(8)
     }
   }
 
-  private readFloat (buffer: Buffer) {
-    return {
-      value: buffer.readFloatBE(0),
-      left: buffer.slice(4)
-    }
+  private readFloat (buffer?: Buffer): TagNode {
+    return this.readNode(Buffer.prototype.readFloatBE, 4, buffer)
   }
 
-  private readDouble (buffer: Buffer) {
-    return {
-      value: buffer.readDoubleBE(0),
-      left: buffer.slice(8)
-    }
+  private readDouble (buffer?: Buffer): TagNode {
+    return this.readNode(Buffer.prototype.readDoubleBE, 8, buffer)
   }
 
-  private readByteArray (buffer: Buffer) {
-    return this.readArray(buffer, this.readByte)
+  private readByteArray (buffer?: Buffer): TagNode {
+    return this.readArray(this.readByte, buffer)
   }
 
-  private readString (buffer: Buffer) {
+  private readString (buffer?: Buffer): TagNode {
     const { value: size, left } = this.readShort(buffer)
-    buffer = left
     return {
-      value: buffer.toString('utf8', 0, size),
-      left: buffer.slice(size)
+      value: left.toString('utf8', 0, size),
+      left: left.slice(size)
     }
   }
 
-  private readList (buffer: Buffer) {
-    const { value: type, left } = this.readByte(buffer)
-    buffer = left
-    const elem = this.readInt(buffer)
-    buffer = elem.left
-    const result = []
-    for (let i = 0; i < elem.value; i++) {
+  private readListElems (list, buffer: Buffer, type, i: number) {
+    if (i === 0) {
+      return buffer
+    } else {
       const node = this.readTag(buffer, {
         value: {
           type
         }
       })
-      result.push(node)
-      buffer = node.left
-    }
-    return {
-      value: result,
-      left: buffer
+      list.push(node)
+      return this.readListElems(list, node.left, type, i - 1)
     }
   }
 
-  private readCompound (buffer: Buffer) {
-    const result = []
-    while (true) {
-      const node = this.readTag(buffer, undefined)
-      buffer = node.left
-      if (node.type === TAG.END) {
-        break
-      } else {
-        result.push(node)
-      }
-    }
-    return {
-      value: result,
-      left: buffer
-    }
-  }
-
-  private readIntArray (buffer: Buffer) {
-    return this.readArray(buffer, this.readInt)
-  }
-
-  private readLongArray (buffer: Buffer) {
-    return this.readArray(buffer, this.readLong)
-  }
-
-  private readArray (buffer: Buffer, readFunc: Function) {
-    const { value: size, left } = this.readInt(buffer)
-    buffer = left
-    const result = []
-    for (let i = 0; i < size; i++) {
-      const node = readFunc.call(this, buffer)
-      result.push(node)
-      buffer = node.left
-    }
-    return {
-      value: result,
-      left: buffer
-    }
-  }
-
-  private readName (buffer: Buffer) {
+  private readList (buffer?: Buffer): TagNode {
     const { value: type, left } = this.readByte(buffer)
-    buffer = left
+    const lengthNode = this.readInt(left)
+    // const result = []
+    // for (let i = 0; i < lengthNode.value; i++) {
+    //   const node = this.readTag(lengthNode.left, {
+    //     value: {
+    //       type
+    //     }
+    //   })
+    //   result.push(node)
+    //   buffer = node.left
+    // }
+
+    // const result = []
+    // const buffer = Array(length).reduce((a, b) => {
+    //   const node = this.readTag(lengthNode.left, {
+    //     value: {
+    //       type
+    //     }
+    //   })
+    //   result.push(node)
+    //   return node.left
+    // }, lengthNode.left)
+    const result = []
+    const newBuffer = this.readListElems(result, lengthNode.left, type, lengthNode.value)
+    return {
+      value: result,
+      left: newBuffer
+    }
+  }
+
+  private readCompoundElems (list, buffer: Buffer) {
+    const node = this.readTag(buffer, undefined)
+    console.log(buffer);
+    if (node.type === TAG.END) {
+      return node.left
+    } else {
+      list.push(node)
+      return this.readCompoundElems(list, node.left)
+    }
+  }
+
+  private readCompound (buffer?: Buffer): TagNode {
+    const result = []
+    // while (true) {
+    //   const node = this.readTag(buffer, undefined)
+    //   buffer = node.left
+    //   if (node.type === TAG.END) {
+    //     break
+    //   } else {
+    //     result.push(node)
+    //   }
+    // }
+    const left = this.readCompoundElems(result, buffer)
+    return {
+      value: result,
+      left
+    }
+  }
+
+  private readIntArray (buffer?: Buffer): TagNode {
+    return this.readArray(this.readInt, buffer)
+  }
+
+  private readLongArray (buffer?: Buffer): TagNode {
+    return this.readArray(this.readLong, buffer)
+  }
+
+  private readArrayElems (list, buffer: Buffer, readFunc: Function, i: number) {
+    if (i === 0) {
+      return buffer
+    } else {
+      const node = readFunc.call(this, buffer)
+      list.push(node)
+      return this.readArrayElems(list, node.left, readFunc, i - 1) 
+    }
+  }
+
+  private readArray (readFunc: Function, buffer?: Buffer): TagNode {
+    // console.log('readArray', buffer);
+    const { value: size, left } = this.readInt(buffer)
+    // buffer = left
+    // const result = []
+    // for (let i = 0; i < size; i++) {
+    //   const node = readFunc.call(this, buffer)
+    //   result.push(node)
+    //   buffer = node.left
+    // }
+    const result = []
+    const newBuffer = this.readArrayElems(result, left, readFunc, size)
+    return {
+      value: result,
+      left: newBuffer
+    }
+  }
+
+  private readName (buffer?: Buffer): TagNode {
+    const { value: type, left } = this.readByte(buffer)
     if (type === TAG.END) {
       return {
         value: {
           type,
           name: ''
         },
-        left: buffer
+        left
       }
     } else {
-      const str = this.readString(buffer)
-      buffer = str.left
+      const str = this.readString(left)
       return {
         value: {
           type,
           name: str.value
         },
-        left: buffer
+        left: str.left
       }
     }
   }
 
   private readTag (buffer: Buffer, data) {
-    let d
+    let left
+    let nameNode
     if (data) {
-      d = data
+      nameNode = data
     } else {
-      d = this.readName(buffer)
-      buffer = d.left
+      nameNode = this.readName(buffer)
     }
-    const { type, name } = d.value
-    switch (type) {
-      case TAG.END:
-        return {
-          type: TAG.END,
-          name: '',
-          left: buffer
-        }
-      case TAG.BYTE:
-        const byte = this.readByte(buffer)
-        buffer = byte.left
-        return {
-          type: TAG.BYTE,
-          name,
-          left: buffer,
-          value: byte.value
-        }
-      case TAG.SHORT:
-        const short = this.readShort(buffer)
-        buffer = short.left
-        return {
-          type: TAG.SHORT,
-          name,
-          left: buffer,
-          value: short.value
-        }
-      case TAG.INT:
-        const int = this.readInt(buffer)
-        buffer = int.left
-        return {
-          type: TAG.INT,
-          name,
-          left: buffer,
-          value: int.value
-        }
-      case TAG.LONG:
-        const long = this.readLong(buffer)
-        buffer = long.left
-        return {
-          type: TAG.LONG,
-          name,
-          left: buffer,
-          value: long.value
-        }
-      case TAG.FLOAT:
-        const float = this.readFloat(buffer)
-        buffer = float.left
-        return {
-          type: TAG.FLOAT,
-          name,
-          left: buffer,
-          value: float.value
-        }
-      case TAG.DOUBLE:
-        const double = this.readDouble(buffer)
-        buffer = double.left
-        return {
-          type: TAG.DOUBLE,
-          name,
-          left: buffer,
-          value: double.value
-        }
-      case TAG.BYTE_ARRAY:
-        const bytes = this.readByteArray(buffer)
-        buffer = bytes.left
-        return {
-          type: TAG.BYTE_ARRAY,
-          name,
-          left: buffer,
-          value: bytes.value
-        }
-      case TAG.STRING:
-        const string = this.readString(buffer)
-        buffer = string.left
-        return {
-          type: TAG.STRING,
-          name,
-          left: buffer,
-          value: string.value
-        }
-      case TAG.LIST:
-        const list = this.readList(buffer)
-        buffer = list.left
-        return {
-          type: TAG.LIST,
-          name,
-          left: buffer,
-          value: list.value
-        }
-      case TAG.COMPOUND:
-        const compound = this.readCompound(buffer)
-        buffer = compound.left
-        return {
-          type: TAG.COMPOUND,
-          name,
-          left: buffer,
-          value: compound.value
-        }
-      case TAG.INT_ARRAY:
-        const ints = this.readIntArray(buffer)
-        buffer = ints.left
-        return {
-          type: TAG.INT_ARRAY,
-          name,
-          left: buffer,
-          value: ints.value
-        }
-      case TAG.LONG_ARRAY:
-        const longs = this.readLongArray(buffer)
-        buffer = longs.left
-        return {
-          type: TAG.LONG_ARRAY,
-          name,
-          left: buffer,
-          value: longs.value
-        }
+    left = nameNode.left || buffer
+    const { type, name } = nameNode.value
+    // console.log('readTag', buffer)
+    // if (type === TAG.END) {
+    //   return {
+    //     type: TAG.END,
+    //     name: '',
+    //     left: left
+    //   }
+    // } else if (type === TAG.BYTE) {
+    //   const node = this.readByte(left)
+    //   return {
+    //     type: TAG.BYTE,
+    //     name,
+    //     left: node.left,
+    //     value: node.value
+    //   }
+    // } else if (type === TAG.SHORT) {
+    //   const node = this.readShort(left)
+    //   return {
+    //     type: TAG.SHORT,
+    //     name,
+    //     left: node.left,
+    //     value: node.value
+    //   }
+    // } else if (type === TAG.INT) {
+    //   const node = this.readInt(left)
+    //   return {
+    //     type: TAG.INT,
+    //     name,
+    //     left: node.left,
+    //     value: node.value
+    //   }
+    // } else if (type === TAG.LONG) {
+    //   const node = this.readLong(left)
+    //   return {
+    //     type: TAG.LONG,
+    //     name,
+    //     left: node.left,
+    //     value: node.value
+    //   }
+    // } else if (type === TAG.FLOAT) {
+    //   const node = this.readFloat(left)
+    //   return {
+    //     type: TAG.FLOAT,
+    //     name,
+    //     left: node.left,
+    //     value: node.value
+    //   }
+    // } else if (type === TAG.DOUBLE) {
+    //   const node = this.readDouble(left)
+    //   return {
+    //     type: TAG.DOUBLE,
+    //     name,
+    //     left: node.left,
+    //     value: node.value
+    //   }
+    // } else if (type === TAG.BYTE_ARRAY) {
+    //   const node = this.readByteArray(left)
+    //   return {
+    //     type: TAG.BYTE_ARRAY,
+    //     name,
+    //     left: node.left,
+    //     value: node.value
+    //   }
+    // } else if (type === TAG.STRING) {
+    //   const node = this.readString(left)
+    //   return {
+    //     type: TAG.STRING,
+    //     name,
+    //     left: node.left,
+    //     value: node.value
+    //   } 
+    // } else if (type === TAG.LIST) {
+    //   const node = this.readList(left)
+    //   return {
+    //     type: TAG.LIST,
+    //     name,
+    //     left: node.left,
+    //     value: node.value
+    //   }
+    // } else if (type === TAG.COMPOUND) {
+    //   const node = this.readCompound(left)
+    //   return {
+    //     type: TAG.COMPOUND,
+    //     name,
+    //     left: node.left,
+    //     value: node.value
+    //   }
+    // } else if (type === TAG.INT_ARRAY) {
+    //   const node = this.readIntArray(left)
+    //   return {
+    //     type: TAG.INT_ARRAY,
+    //     name,
+    //     left: node.left,
+    //     value: node.value
+    //   }
+    // } else if (type === TAG.LONG_ARRAY) {
+    //   const node = this.readLongArray(left)
+    //   return {
+    //     type: TAG.LONG_ARRAY,
+    //     name,
+    //     left: node.left,
+    //     value: node.value
+    //   }
+    // }
+
+    if (type === TAG.END) {
+      return {
+        type: TAG.END,
+        name: '',
+        left
+      }
+    } else {
+      const node = this.bindMap[type].call(this, left)
+      return {
+        type,
+        name,
+        left: node.left,
+        value: node.value
+      }
     }
   }
 
@@ -312,14 +380,14 @@ class Reader {
     }
   }
 
-  read () {
-    const obj = this.readTag(this.buffer, undefined)
+  read (level: Buffer) {
+    const obj = this.readTag(level, undefined)
     this.prettify(obj)
     return obj
   }
 
-  parse (path: String) {
-    const json = JSON.stringify(this.read())
+  parse (level:Buffer, path: String) {
+    const json = JSON.stringify(this.read(level))
     fs.writeFileSync(path, json, 'utf8')
     return json
   }
@@ -327,7 +395,7 @@ class Reader {
 
 const level: Buffer = zlib.gunzipSync(fs.readFileSync('./src/level.dat'))
 
-const reader = new Reader(level)
-const result = reader.read()
+const reader = new Reader()
+const result = reader.read(level)
 console.log(result)
-reader.parse('result.json')
+reader.parse(level, 'result.json')
