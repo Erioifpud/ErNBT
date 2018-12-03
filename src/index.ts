@@ -24,20 +24,8 @@ interface TagNode {
   left: Buffer
 }
 
-// interface BindMap {
-//   [tag: number]: string
-// }
-
-// function bindTag (tag: TAG) {
-//   return function (target: Reader, propertyKey: string, descriptor: PropertyDescriptor) {
-//     target.bindMap[+tag] = propertyKey
-//   }
-// }
-
 class Reader {
-  // private buffer: Buffer
   private bindMap = {
-    // [TAG.END] = 'readEnd',
     [TAG.BYTE]: this.readByte,
     [TAG.SHORT]: this.readShort,
     [TAG.INT]: this.readInt,
@@ -52,12 +40,7 @@ class Reader {
     [TAG.LONG_ARRAY]: this.readLongArray
   }
 
-  // constructor (buffer: Buffer) {
-  //   this.buffer = buffer
-  // }
-
   private readNode (readFunc: Function, offset: number, buffer: Buffer): TagNode {
-    // console.log('readNode', buffer);
     return {
       value: readFunc.call(buffer, 0),
       left: buffer.slice(offset)
@@ -120,27 +103,6 @@ class Reader {
   private readList (buffer?: Buffer): TagNode {
     const { value: type, left } = this.readByte(buffer)
     const lengthNode = this.readInt(left)
-    // const result = []
-    // for (let i = 0; i < lengthNode.value; i++) {
-    //   const node = this.readTag(lengthNode.left, {
-    //     value: {
-    //       type
-    //     }
-    //   })
-    //   result.push(node)
-    //   buffer = node.left
-    // }
-
-    // const result = []
-    // const buffer = Array(length).reduce((a, b) => {
-    //   const node = this.readTag(lengthNode.left, {
-    //     value: {
-    //       type
-    //     }
-    //   })
-    //   result.push(node)
-    //   return node.left
-    // }, lengthNode.left)
     const result = []
     const newBuffer = this.readListElems(result, lengthNode.left, type, lengthNode.value)
     return {
@@ -151,7 +113,6 @@ class Reader {
 
   private readCompoundElems (list, buffer: Buffer) {
     const node = this.readTag(buffer, undefined)
-    console.log(buffer);
     if (node.type === TAG.END) {
       return node.left
     } else {
@@ -162,15 +123,6 @@ class Reader {
 
   private readCompound (buffer?: Buffer): TagNode {
     const result = []
-    // while (true) {
-    //   const node = this.readTag(buffer, undefined)
-    //   buffer = node.left
-    //   if (node.type === TAG.END) {
-    //     break
-    //   } else {
-    //     result.push(node)
-    //   }
-    // }
     const left = this.readCompoundElems(result, buffer)
     return {
       value: result,
@@ -197,15 +149,7 @@ class Reader {
   }
 
   private readArray (readFunc: Function, buffer?: Buffer): TagNode {
-    // console.log('readArray', buffer);
     const { value: size, left } = this.readInt(buffer)
-    // buffer = left
-    // const result = []
-    // for (let i = 0; i < size; i++) {
-    //   const node = readFunc.call(this, buffer)
-    //   result.push(node)
-    //   buffer = node.left
-    // }
     const result = []
     const newBuffer = this.readArrayElems(result, left, readFunc, size)
     return {
@@ -246,111 +190,6 @@ class Reader {
     }
     left = nameNode.left || buffer
     const { type, name } = nameNode.value
-    // console.log('readTag', buffer)
-    // if (type === TAG.END) {
-    //   return {
-    //     type: TAG.END,
-    //     name: '',
-    //     left: left
-    //   }
-    // } else if (type === TAG.BYTE) {
-    //   const node = this.readByte(left)
-    //   return {
-    //     type: TAG.BYTE,
-    //     name,
-    //     left: node.left,
-    //     value: node.value
-    //   }
-    // } else if (type === TAG.SHORT) {
-    //   const node = this.readShort(left)
-    //   return {
-    //     type: TAG.SHORT,
-    //     name,
-    //     left: node.left,
-    //     value: node.value
-    //   }
-    // } else if (type === TAG.INT) {
-    //   const node = this.readInt(left)
-    //   return {
-    //     type: TAG.INT,
-    //     name,
-    //     left: node.left,
-    //     value: node.value
-    //   }
-    // } else if (type === TAG.LONG) {
-    //   const node = this.readLong(left)
-    //   return {
-    //     type: TAG.LONG,
-    //     name,
-    //     left: node.left,
-    //     value: node.value
-    //   }
-    // } else if (type === TAG.FLOAT) {
-    //   const node = this.readFloat(left)
-    //   return {
-    //     type: TAG.FLOAT,
-    //     name,
-    //     left: node.left,
-    //     value: node.value
-    //   }
-    // } else if (type === TAG.DOUBLE) {
-    //   const node = this.readDouble(left)
-    //   return {
-    //     type: TAG.DOUBLE,
-    //     name,
-    //     left: node.left,
-    //     value: node.value
-    //   }
-    // } else if (type === TAG.BYTE_ARRAY) {
-    //   const node = this.readByteArray(left)
-    //   return {
-    //     type: TAG.BYTE_ARRAY,
-    //     name,
-    //     left: node.left,
-    //     value: node.value
-    //   }
-    // } else if (type === TAG.STRING) {
-    //   const node = this.readString(left)
-    //   return {
-    //     type: TAG.STRING,
-    //     name,
-    //     left: node.left,
-    //     value: node.value
-    //   } 
-    // } else if (type === TAG.LIST) {
-    //   const node = this.readList(left)
-    //   return {
-    //     type: TAG.LIST,
-    //     name,
-    //     left: node.left,
-    //     value: node.value
-    //   }
-    // } else if (type === TAG.COMPOUND) {
-    //   const node = this.readCompound(left)
-    //   return {
-    //     type: TAG.COMPOUND,
-    //     name,
-    //     left: node.left,
-    //     value: node.value
-    //   }
-    // } else if (type === TAG.INT_ARRAY) {
-    //   const node = this.readIntArray(left)
-    //   return {
-    //     type: TAG.INT_ARRAY,
-    //     name,
-    //     left: node.left,
-    //     value: node.value
-    //   }
-    // } else if (type === TAG.LONG_ARRAY) {
-    //   const node = this.readLongArray(left)
-    //   return {
-    //     type: TAG.LONG_ARRAY,
-    //     name,
-    //     left: node.left,
-    //     value: node.value
-    //   }
-    // }
-
     if (type === TAG.END) {
       return {
         type: TAG.END,
