@@ -20,8 +20,14 @@ enum TAG {
 }
 
 interface TagNode {
-  value: any,
+  value: any
   left: Buffer
+}
+
+interface SerializedNode {
+  type: string
+  name: string
+  value: any
 }
 
 class Reader {
@@ -40,7 +46,11 @@ class Reader {
     [TAG.LONG_ARRAY]: this.readLongArray
   }
 
-  private readNode (readFunc: Function, offset: number, buffer: Buffer): TagNode {
+  private readNode (
+    readFunc: Function,
+    offset: number,
+    buffer: Buffer
+  ): TagNode {
     return {
       value: readFunc.call(buffer, 0),
       left: buffer.slice(offset)
@@ -62,7 +72,7 @@ class Reader {
   private readLong (buffer?: Buffer): TagNode {
     return {
       value: new Int64BE(buffer).toString(),
-      left: (buffer).slice(8)
+      left: buffer.slice(8)
     }
   }
 
@@ -86,7 +96,7 @@ class Reader {
     }
   }
 
-  private readListElems (list, buffer: Buffer, type, i: number) {
+  private readListElems (list, buffer: Buffer, type: string, i: number) {
     if (i === 0) {
       return buffer
     } else {
@@ -104,7 +114,12 @@ class Reader {
     const { value: type, left } = this.readByte(buffer)
     const lengthNode = this.readInt(left)
     const result = []
-    const newBuffer = this.readListElems(result, lengthNode.left, type, lengthNode.value)
+    const newBuffer = this.readListElems(
+      result,
+      lengthNode.left,
+      type,
+      lengthNode.value
+    )
     return {
       value: result,
       left: newBuffer
@@ -144,7 +159,7 @@ class Reader {
     } else {
       const node = readFunc.call(this, buffer)
       list.push(node)
-      return this.readArrayElems(list, node.left, readFunc, i - 1) 
+      return this.readArrayElems(list, node.left, readFunc, i - 1)
     }
   }
 
@@ -208,7 +223,7 @@ class Reader {
   }
 
   private prettify (obj) {
-    for(let prop in obj) {
+    for (let prop in obj) {
       if (prop === 'left') {
         delete obj[prop]
       } else if (prop === 'type') {
@@ -225,16 +240,128 @@ class Reader {
     return obj
   }
 
-  parse (level:Buffer, path: String) {
+  parse (level: Buffer, path: String) {
     const json = JSON.stringify(this.read(level))
     fs.writeFileSync(path, json, 'utf8')
     return json
   }
 }
 
-const level: Buffer = zlib.gunzipSync(fs.readFileSync('./src/level.dat'))
+// const level: Buffer = zlib.gunzipSync(fs.readFileSync('./src/level2.dat'))
 
-const reader = new Reader()
-const result = reader.read(level)
-console.log(result)
-reader.parse(level, 'result.json')
+// const reader = new Reader()
+// const result = reader.read(level)
+// console.log(result)
+// reader.parse(level, 'result.json')
+
+class Writer {
+  // private bindMap = {
+  //   [TAG.BYTE]: this.writeByte,
+  //   [TAG.SHORT]: this.writeShort,
+  //   [TAG.INT]: this.writeInt,
+  //   [TAG.LONG]: this.writeLong,
+  //   [TAG.FLOAT]: this.writeFloat,
+  //   [TAG.DOUBLE]: this.writeDouble,
+  //   [TAG.BYTE_ARRAY]: this.writeByteArray,
+  //   [TAG.STRING]: this.writeString,
+  //   [TAG.LIST]: this.writeList,
+  //   [TAG.COMPOUND]: this.writeCompound,
+  //   [TAG.INT_ARRAY]: this.writeIntArray,
+  //   [TAG.LONG_ARRAY]: this.writeLongArray
+  // }
+
+  // private readNode (readFunc: Function, offset: number, buffer: Buffer): TagNode {
+  //   return {
+  //     value: readFunc.call(buffer, 0),
+  //     left: buffer.slice(offset)
+  //   }
+  // }
+
+  private writeByte (value: number): Buffer {
+    const buffer = new Buffer(1)
+    buffer.writeInt8(value, 0)
+    return buffer
+  }
+
+  private writeShort (value: number): Buffer {
+    const buffer = new Buffer(2)
+    buffer.writeInt16BE(value, 0)
+    return buffer
+  }
+
+  private writeInt (value: number): Buffer {
+    const buffer = new Buffer(4)
+    buffer.writeInt32BE(value, 0)
+    return buffer
+  }
+
+  private writeLong (value: String): Buffer {
+    const buffer = new Buffer(8)
+    const big = new Int64BE(value)
+    return big.toBuffer()
+  }
+
+  private writeFloat (value: number): Buffer {
+    const buffer = new Buffer(4)
+    buffer.writeFloatBE(value, 0)
+    return buffer
+  }
+
+  private writeDouble (value: number): Buffer {
+    const buffer = new Buffer(8)
+    buffer.writeDoubleBE(value, 0)
+    return buffer
+  }
+
+  private writeByteArray (value: [{ value: number }]): Buffer {
+    const buffers: Array<Buffer> = []
+    const length = value.length
+    buffers.push(new Buffer(this.writeInt(length)))
+    const bytes = value.map(item => this.writeByte(item.value))
+    return Buffer.concat(buffers.concat(bytes))
+  }
+
+  private writeString (value: string) {
+    const buffers: Array<Buffer> = []
+    const length = value.length
+    buffers.push(new Buffer(this.writeShort(length)))
+    buffers.push(new Buffer(value, 'utf8'))
+    return Buffer.concat(buffers)
+  }
+
+  private writeList (value: [], type: TAG) {
+    const buffers: Array<Buffer> = []
+    // const allEqual = value.value.every((item, k, arr) => item.type === arr[0].type)
+    // if (!allEqual) {
+    //   throw new NBTFormatError('List elements type not equal')
+    // }
+    const length = value.length
+    buffers.push(new Buffer(this.writeByte(type)))
+    buffers.push(new Buffer(this.writeInt(length)))
+    // value.map(item => this.writeTag(item.type, undefined))
+    // concat
+    return Buffer.concat(buffers)
+  }
+
+  private writeCompound (value: []) {
+    const buffers: Array<Buffer> = []
+    // value.map(item => this.writeTag(item.type, item.name))
+    return Buffer.concat(buffers)
+  }
+
+  private writeIntArray (value) {
+
+  }
+
+  private writeLongArray (value) {
+
+  }
+}
+
+class NBTFormatError extends Error {
+  constructor (message?: string) {
+    super(message)
+    this.name = 'NBTFormatError'
+    this.stack = (<any>new Error()).stack
+  }
+}
