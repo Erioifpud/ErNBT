@@ -329,34 +329,103 @@ class Writer {
     return Buffer.concat(buffers)
   }
 
-  private writeList (value: [], type: TAG) {
+  private writeList (value) {
     const buffers: Array<Buffer> = []
     // const allEqual = value.value.every((item, k, arr) => item.type === arr[0].type)
     // if (!allEqual) {
     //   throw new NBTFormatError('List elements type not equal')
     // }
     const length = value.length
-    buffers.push(new Buffer(this.writeByte(type)))
+    buffers.push(new Buffer(this.writeByte(value[0].type))) // need check all node type
     buffers.push(new Buffer(this.writeInt(length)))
-    // value.map(item => this.writeTag(item.type, undefined))
-    // concat
+    buffers.push(...value.map(item => this.writeTag(item, true)))
+    console.log('list buffers', buffers);
     return Buffer.concat(buffers)
   }
 
-  private writeCompound (value: []) {
+  private writeCompound (value) {
     const buffers: Array<Buffer> = []
-    // value.map(item => this.writeTag(item.type, item.name))
+    buffers.push(...value.map(item => this.writeTag(item)))
+    buffers.push(this.writeByte(0))
     return Buffer.concat(buffers)
   }
 
   private writeIntArray (value) {
-
+    const buffers: Array<Buffer> = []
+    const length = value.length
+    buffers.push(new Buffer(this.writeInt(length)))
+    const bytes = value.map(item => this.writeInt(item.value))
+    return Buffer.concat(buffers.concat(bytes))
   }
 
   private writeLongArray (value) {
+    const buffers: Array<Buffer> = []
+    const length = value.length
+    buffers.push(new Buffer(this.writeInt(length)))
+    const bytes = value.map(item => this.writeInt(item.value))
+    return Buffer.concat(buffers.concat(bytes))
+  }
 
+  private writeName (node) {
+    var buffers: Array<Buffer> = []
+    buffers.push(this.writeByte(+TAG[node.type]));
+    console.log('writeName1', buffers);
+    // if (node.type !== TAG[TAG.END]) {
+      buffers.push(this.writeString(node.name));
+    // }
+    console.log('writeName2', buffers);
+    return Buffer.concat(buffers);
+  }
+
+  private writeTag (node, nameless?: boolean) {
+    const buffers: Array<Buffer> = []
+    if (!nameless) {
+      console.log('nameless true');
+      buffers.push(this.writeName(node))
+    }
+    if (node.type === TAG[TAG.BYTE]) {
+      buffers.push(this.writeByte(node.value))
+    } else if (node.type === TAG[TAG.SHORT]) {
+      buffers.push(this.writeShort(node.value))
+    } else if (node.type === TAG[TAG.INT]) {
+      buffers.push(this.writeInt(node.value))
+    } else if (node.type === TAG[TAG.LONG]) {
+      buffers.push(this.writeLong(node.value))
+    } else if (node.type === TAG[TAG.FLOAT]) {
+      buffers.push(this.writeFloat(node.value))
+    } else if (node.type === TAG[TAG.DOUBLE]) {
+      buffers.push(this.writeDouble(node.value))
+    } else if (node.type === TAG[TAG.BYTE_ARRAY]) {
+      buffers.push(this.writeByteArray(node.value))
+    } else if (node.type === TAG[TAG.STRING]) {
+      buffers.push(this.writeString(node.value))
+    } else if (node.type === TAG[TAG.LIST]) {
+      buffers.push(this.writeList(node.value))
+    } else if (node.type === TAG[TAG.COMPOUND]) {
+      buffers.push(this.writeCompound(node.value))
+    } else if (node.type === TAG[TAG.INT_ARRAY]) {
+      buffers.push(this.writeIntArray(node.value))
+    } else if (node.type === TAG[TAG.LONG_ARRAY]) {
+      buffers.push(this.writeLongArray(node.value))
+    }
+    return Buffer.concat(buffers)
+  }
+
+  test (node) {
+    return this.writeTag(node, true)
   }
 }
+
+const result = fs.readFileSync('./result.json', {
+  encoding: 'utf8'
+})
+
+const writer = new Writer()
+const ttt = writer.test(JSON.parse(result))
+console.log(ttt);
+// const result = reader.read(level)
+// console.log(result)
+// reader.parse(level, 'result.json')
 
 class NBTFormatError extends Error {
   constructor (message?: string) {
